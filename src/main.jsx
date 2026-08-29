@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import "./styles.css";
 
-const WA_NUMBER = "923001234567"; // Change this placeholder number before launch.
+const WA_NUMBER = "923262665203"; // Change this placeholder number before launch.
 
 const img = (id, w=900) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=82`;
 
