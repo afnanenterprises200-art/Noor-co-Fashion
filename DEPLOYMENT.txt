@@ -1,0 +1,9 @@
+NOOR & CO. QUICK DEPLOYMENT
+1. Install Node.js 18+.
+2. In this folder run: npm install
+3. Test: npm run dev
+4. Build: npm run build
+5. Upload the contents of dist/ to your hosting public_html folder.
+6. Change WA_NUMBER in src/main.jsx.
+7. Replace the image placeholders with your own optimized product photography.
+8. Connect checkout/order submission to a real backend before accepting live orders.
