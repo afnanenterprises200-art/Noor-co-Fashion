@@ -5,18 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex,nofollow" />
     <title>Misk Collections — Admin</title>
+    <style>body{margin:0}#boot-error{display:none;margin:20px;padding:18px;border:1px solid #b91c1c;color:#7f1d1d;background:#fef2f2;font:14px/1.5 Arial,sans-serif;white-space:pre-wrap}</style>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/admin.jsx"></script>
+    <div id="boot-error"></div>
     <script>
-      const renameAdmin = () => {
-        document.querySelectorAll('.eyebrow').forEach(el => {
-          el.textContent = el.textContent.replaceAll('NOOR', 'MISK');
-        });
-      };
-      new MutationObserver(renameAdmin).observe(document.documentElement, {subtree:true, childList:true});
-      renameAdmin();
+      window.addEventListener('error', function(e){
+        var box=document.getElementById('boot-error');
+        if(box){box.style.display='block';box.textContent='ADMIN LOAD ERROR: '+(e.error?.stack||e.message||'Unknown error');}
+      });
+      window.addEventListener('unhandledrejection', function(e){
+        var box=document.getElementById('boot-error');
+        if(box){box.style.display='block';box.textContent='ADMIN LOAD ERROR: '+(e.reason?.stack||e.reason?.message||String(e.reason)||'Unknown error');}
+      });
     </script>
+    <script type="module" src="/src/admin.jsx"></script>
   </body>
 </html>
