@@ -13,19 +13,9 @@ function App(){
  const notify=m=>{setMessage(m);setTimeout(()=>setMessage(''),8000)};
  const load=async()=>{setBusy(true);try{const r=await Promise.race([supabase.from('products').select('*').order('id',{ascending:false}),timeout(10000)]);if(r.error)throw r.error;setProducts(r.data||[])}catch(error){console.error(error);setProducts(fallback);notify('CATALOG LOAD FAILED: '+error.message)}finally{setBusy(false)}};
  useEffect(()=>{load()},[]);
- const save=async e=>{e.preventDefault();
-  if(!form.name.trim()){notify('Please enter a product name.');return}
-  setBusy(true);setMessage('Saving product…');
-  const p={name:form.name.trim(),price:Number(form.price)||0,sale_price:form.salePrice===''?null:Number(form.salePrice),category:form.category,sizes:form.sizes.split(',').map(x=>x.trim()).filter(Boolean),colors:form.colors.split(',').map(x=>x.trim()).filter(Boolean),fabric:form.fabric.trim(),stock:Number(form.stock)||0,description:form.description.trim(),image_url:form.image_url||null};
-  try{
-   let r;
-   if(editing){r=await Promise.race([supabase.from('products').update(p).eq('id',editing),timeout(15000)]);}else{r=await Promise.race([supabase.from('products').insert(p),timeout(15000)]);}
-   if(r.error)throw r.error;
-   notify(editing?'Product updated ✓':'Product added ✓');
-   setEditing(null);setForm(empty);
-   await load();
-  }catch(err){console.error(err);notify('SAVE FAILED: '+(err?.message||String(err)))}finally{setBusy(false)}
- };
+ const save=async e=>{e.preventDefault();if(!form.name.trim()){notify('Please enter a product name.');return}setBusy(true);setMessage('Saving product…');
+  const p={name:form.name.trim(),price:Number(form.price)||0,sale_price:form.salePrice===''?null:Number(form.salePrice),category:form.category,sizes:form.sizes.split(',').map(x=>x.trim()).filter(Boolean),colors:form.colors.split(',').map(x=>x.trim()).filter(Boolean),stock:Number(form.stock)||0,description:form.description.trim(),image_url:form.image_url||null};
+  try{let r;if(editing){r=await Promise.race([supabase.from('products').update(p).eq('id',editing),timeout(15000)])}else{r=await Promise.race([supabase.from('products').insert(p),timeout(15000)])}if(r.error)throw r.error;notify(editing?'Product updated ✓':'Product added ✓');setEditing(null);setForm(empty);await load()}catch(err){console.error(err);notify('SAVE FAILED: '+(err?.message||String(err)))}finally{setBusy(false)}};
  const remove=async id=>{if(!confirm('Delete this product?'))return;setBusy(true);try{const r=await Promise.race([supabase.from('products').delete().eq('id',id),timeout(15000)]);if(r.error)throw r.error;notify('Product deleted ✓');await load()}catch(err){notify('DELETE FAILED: '+err.message)}finally{setBusy(false)}};
  const upload=async e=>{const file=e.target.files?.[0];if(!file)return;setBusy(true);setMessage('Uploading image…');const ext=file.name.split('.').pop()?.toLowerCase()||'jpg';const path=`${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;try{const r=await Promise.race([supabase.storage.from(PRODUCT_BUCKET).upload(path,file,{upsert:false,contentType:file.type}),timeout(20000)]);if(r.error)throw r.error;const {data}=supabase.storage.from(PRODUCT_BUCKET).getPublicUrl(path);setForm(x=>({...x,image_url:data.publicUrl}));notify('Image uploaded ✓')}catch(err){notify('IMAGE UPLOAD FAILED: '+(err?.message||String(err)))}finally{setBusy(false)}};
  const stats=useMemo(()=>({total:products.length,stock:products.reduce((a,x)=>a+Number(x.stock||0),0)}),[products]);
