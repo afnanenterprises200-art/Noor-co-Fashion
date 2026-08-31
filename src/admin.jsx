@@ -4,25 +4,30 @@ import {supabase,PRODUCT_BUCKET} from './supabase';
 import './admin.css';
 
 const empty={name:'',price:'',salePrice:'',category:'Casual',sizes:'S, M, L',colors:'',fabric:'',stock:'',description:'',image_url:''};
-const fallback=[
-{id:1,name:'Burgundy Grace 2-Piece',price:3290,sale_price:2890,category:'Casual',sizes:['S','M','L','XL'],colors:['Burgundy','Ivory'],fabric:'Premium lawn',stock:7,image_url:''},
-{id:2,name:'Ivory Bloom 3-Piece',price:4290,sale_price:null,category:'Casual',sizes:['S','M','L'],colors:['Ivory','Rose'],fabric:'Lawn & voile',stock:11,image_url:''}
-];
+const fallback=[];
 const toForm=p=>({...empty,...p,salePrice:p.sale_price??'',image_url:p.image_url||'',sizes:Array.isArray(p.sizes)?p.sizes.join(', '):p.sizes||'',colors:Array.isArray(p.colors)?p.colors.join(', '):p.colors||''});
+const timeout=ms=>new Promise((_,reject)=>setTimeout(()=>reject(new Error('Request timed out. Please check the Supabase database policies.')),ms));
 function App(){
  const [products,setProducts]=useState([]),[form,setForm]=useState(empty),[editing,setEditing]=useState(null),[busy,setBusy]=useState(true),[message,setMessage]=useState('');
  const [wa,setWa]=useState(localStorage.getItem('noor_wa_number')||'923262665203');
- const notify=m=>{setMessage(m);setTimeout(()=>setMessage(''),5000)};
- const load=async()=>{setBusy(true);const {data,error}=await supabase.from('products').select('*').order('id',{ascending:false});if(error){setProducts(fallback);notify('Database read failed: '+error.message)}else setProducts(data||[]);setBusy(false)};
+ const notify=m=>{setMessage(m);setTimeout(()=>setMessage(''),8000)};
+ const load=async()=>{setBusy(true);try{const r=await Promise.race([supabase.from('products').select('*').order('id',{ascending:false}),timeout(10000)]);if(r.error)throw r.error;setProducts(r.data||[])}catch(error){console.error(error);setProducts(fallback);notify('CATALOG LOAD FAILED: '+error.message)}finally{setBusy(false)}};
  useEffect(()=>{load()},[]);
- const save=async e=>{e.preventDefault();setBusy(true);setMessage('Saving product…');
-  const p={name:form.name.trim(),price:Number(form.price)||0,sale_price:form.salePrice===''?null:Number(form.salePrice),category:form.category,sizes:form.sizes.split(',').map(x=>x.trim()).filter(Boolean),colors:form.colors.split(',').map(x=>x.trim()).filter(Boolean),fabric:form.fabric.trim(),stock:Number(form.stock)||0,description:form.description.trim(),image_url:form.image_url};
-  try{const result=editing?await supabase.from('products').update(p).eq('id',editing).select().single():await supabase.from('products').insert(p).select().single();
-   if(result.error){console.error(result.error);notify('SAVE FAILED: '+result.error.message)}else{notify(editing?'Product updated ✓':'Product added ✓');setEditing(null);setForm(empty);await load()}
+ const save=async e=>{e.preventDefault();
+  if(!form.name.trim()){notify('Please enter a product name.');return}
+  setBusy(true);setMessage('Saving product…');
+  const p={name:form.name.trim(),price:Number(form.price)||0,sale_price:form.salePrice===''?null:Number(form.salePrice),category:form.category,sizes:form.sizes.split(',').map(x=>x.trim()).filter(Boolean),colors:form.colors.split(',').map(x=>x.trim()).filter(Boolean),fabric:form.fabric.trim(),stock:Number(form.stock)||0,description:form.description.trim(),image_url:form.image_url||null};
+  try{
+   let r;
+   if(editing){r=await Promise.race([supabase.from('products').update(p).eq('id',editing),timeout(15000)]);}else{r=await Promise.race([supabase.from('products').insert(p),timeout(15000)]);}
+   if(r.error)throw r.error;
+   notify(editing?'Product updated ✓':'Product added ✓');
+   setEditing(null);setForm(empty);
+   await load();
   }catch(err){console.error(err);notify('SAVE FAILED: '+(err?.message||String(err)))}finally{setBusy(false)}
  };
- const remove=async id=>{if(!confirm('Delete this product?'))return;setBusy(true);const {error}=await supabase.from('products').delete().eq('id',id);if(error)notify('DELETE FAILED: '+error.message);else{setProducts(a=>a.filter(x=>x.id!==id));notify('Product deleted ✓')}setBusy(false)};
- const upload=async e=>{const file=e.target.files?.[0];if(!file)return;setBusy(true);setMessage('Uploading image…');const ext=file.name.split('.').pop()?.toLowerCase()||'jpg';const path=`${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;try{const {error}=await supabase.storage.from(PRODUCT_BUCKET).upload(path,file,{upsert:false,contentType:file.type});if(error)throw error;const {data}=supabase.storage.from(PRODUCT_BUCKET).getPublicUrl(path);setForm(x=>({...x,image_url:data.publicUrl}));notify('Image uploaded ✓')}catch(err){notify('IMAGE UPLOAD FAILED: '+(err?.message||String(err)))}finally{setBusy(false)}};
+ const remove=async id=>{if(!confirm('Delete this product?'))return;setBusy(true);try{const r=await Promise.race([supabase.from('products').delete().eq('id',id),timeout(15000)]);if(r.error)throw r.error;notify('Product deleted ✓');await load()}catch(err){notify('DELETE FAILED: '+err.message)}finally{setBusy(false)}};
+ const upload=async e=>{const file=e.target.files?.[0];if(!file)return;setBusy(true);setMessage('Uploading image…');const ext=file.name.split('.').pop()?.toLowerCase()||'jpg';const path=`${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;try{const r=await Promise.race([supabase.storage.from(PRODUCT_BUCKET).upload(path,file,{upsert:false,contentType:file.type}),timeout(20000)]);if(r.error)throw r.error;const {data}=supabase.storage.from(PRODUCT_BUCKET).getPublicUrl(path);setForm(x=>({...x,image_url:data.publicUrl}));notify('Image uploaded ✓')}catch(err){notify('IMAGE UPLOAD FAILED: '+(err?.message||String(err)))}finally{setBusy(false)}};
  const stats=useMemo(()=>({total:products.length,stock:products.reduce((a,x)=>a+Number(x.stock||0),0)}),[products]);
  const edit=p=>{setEditing(p.id);setForm(toForm(p));window.scrollTo({top:0,behavior:'smooth'})};
  const saveWa=()=>{localStorage.setItem('noor_wa_number',wa);notify('WhatsApp number saved ✓')};
