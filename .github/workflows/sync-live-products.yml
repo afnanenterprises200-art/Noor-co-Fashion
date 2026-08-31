@@ -15,48 +15,46 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Connect storefront to Supabase products
+      - name: Restore known-good storefront
+        shell: bash
+        run: |
+          if grep -q "LIVE PRODUCTS PATCH" src/main.jsx; then
+            echo "Patch already present; nothing to do."
+            exit 0
+          fi
+          git show 40c14dd1a5beb2af5b696769b6478d839aae4e10:src/main.jsx > src/main.jsx
+
+      - name: Connect storefront to Supabase
         shell: python
         run: |
           from pathlib import Path
-          import re
-
-          path = Path('src/main.jsx')
+          path = Path("src/main.jsx")
           text = path.read_text()
-
-          if 'LIVE PRODUCTS PATCH' in text:
-              print('Live products patch already applied; nothing to do.')
-              raise SystemExit(0)
-
-          text = text.replace(
-              'import React, { useMemo, useState } from "react";',
-              'import React, { useEffect, useMemo, useState } from "react";\nimport { supabase } from "./supabase";'
-          )
-
-          text = text.replace('const products = [', 'const fallbackProducts = [', 1)
-
-          marker = '\nconst categoryCards = ['
+          old = 'import React, { useMemo, useState } from "react";'
+          new = 'import React, { useEffect, useMemo, useState } from "react";\nimport { supabase } from "./supabase";'
+          if old not in text:
+              raise SystemExit("React import not found")
+          text = text.replace(old, new, 1)
+          text = text.replace("const products = [", "const fallbackProducts = [", 1)
+          marker = "\nconst categoryCards = ["
           if marker not in text:
-              raise SystemExit('Could not find product-array boundary.')
+              raise SystemExit("Product boundary not found")
+          live = r'''
 
-          live_block = r'''
-
-// LIVE PRODUCTS PATCH: Admin changes are loaded from Supabase.
+// LIVE PRODUCTS PATCH
 let products = fallbackProducts;
 const normalizeLiveProduct = (p, index) => {
+  const split = value => Array.isArray(value) ? value : String(value ?? "").split(",").map(x => x.trim()).filter(Boolean);
   const image = p.image_URL || p.image_url || p.image || "";
-  const split = value => Array.isArray(value) ? value : String(value || "").split(",").map(x => x.trim()).filter(Boolean);
-  const category = p.category || "Casual";
-  const type = p.type || (category === "Co-ords" ? "Co-ord" : category === "3-Piece" ? "3-Piece" : "2-Piece");
   return {
     ...p,
     id: p.id ?? `live-${index}`,
     name: p.name || "Misk Collection",
-    category,
-    style: p.style || category,
-    type,
+    category: p.category || "Casual",
+    style: p.style || p.category || "Casual",
+    type: p.type || "2-Piece",
     price: Number(p.price) || 0,
-    salePrice: p.sale_price == null || p.sale_price === "" ? null : Number(p.sale_price),
+    salePrice: p.sale_price === null || p.sale_price === undefined || p.sale_price === "" ? null : Number(p.sale_price),
     sizes: split(p.sizes),
     colors: split(p.colors),
     fabric: p.fabric || "Premium fabric",
@@ -65,50 +63,44 @@ const normalizeLiveProduct = (p, index) => {
     featured: Boolean(p.featured),
     bestseller: Boolean(p.bestseller),
     desc: p.description || p.desc || "",
-    images: image ? [image] : (Array.isArray(p.images) && p.images.length ? p.images : [])
+    images: image ? [image] : (Array.isArray(p.images) ? p.images : [])
   };
 };
 '''
-          text = text.replace(marker, live_block + marker, 1)
-
-          app_state = '  const [checkoutDone,setCheckoutDone] = useState(false);'
-          live_effect = r'''
-  const [checkoutDone,setCheckoutDone] = useState(false);
+          text = text.replace(marker, live + marker, 1)
+          state = '  const [checkoutDone,setCheckoutDone] = useState(false);'
+          if state not in text:
+              raise SystemExit("App state marker not found")
+          effect = r'''  const [checkoutDone,setCheckoutDone] = useState(false);
   const [liveProductsVersion,setLiveProductsVersion] = useState(0);
-
-  useEffect(()=>{
-    let alive=true;
-    const loadLiveProducts=async()=>{
-      try{
-        const {data,error}=await supabase.from("products").select("*").order("id",{ascending:false});
-        if(error) throw error;
-        if(alive && Array.isArray(data) && data.length){
-          products=data.map(normalizeLiveProduct);
-          setLiveProductsVersion(v=>v+1);
+  useEffect(() => {
+    let alive = true;
+    const loadLiveProducts = async () => {
+      try {
+        const { data, error } = await supabase.from("products").select("*").order("id", { ascending: false });
+        if (error) throw error;
+        if (alive && Array.isArray(data)) {
+          products = data.map(normalizeLiveProduct);
+          setLiveProductsVersion(v => v + 1);
         }
-      }catch(error){
-        console.warn("Live product sync unavailable; using storefront fallback products.",error);
+      } catch (error) {
+        console.warn("Live product sync unavailable; using fallback catalogue.", error);
       }
     };
     loadLiveProducts();
-    return ()=>{alive=false};
-  },[]);'''
-          if app_state not in text:
-              raise SystemExit('Could not find App state boundary.')
-          text = text.replace(app_state, live_effect, 1)
-
-          text = text.replace('  },[filters,search]);', '  },[filters,search,liveProductsVersion]);', 1)
-          text = text.replace('  return <div className="app">', '  return <div className="app">', 1)
-
+    return () => { alive = false; };
+  }, []);'''
+          text = text.replace(state, effect, 1)
+          text = text.replace('},[filters,search]);', '},[filters,search,liveProductsVersion]);', 1)
           path.write_text(text)
-      - name: Commit storefront sync
+      - name: Commit patched storefront
         run: |
           if git diff --quiet; then
-            echo "No storefront changes needed."
+            echo "No changes needed."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/main.jsx
-          git commit -m "Connect storefront products to Supabase"
+          git commit -m "Connect storefront products to Supabase [skip ci]"
           git push
