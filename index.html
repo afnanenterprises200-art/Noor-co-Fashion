@@ -9,14 +9,6 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/store.jsx"></script>
-    <script>
-      const renameBrand = () => {
-        document.querySelectorAll('.brand span').forEach(el => el.textContent = 'MISK');
-        document.querySelectorAll('.brand small').forEach(el => el.textContent = ' COLLECTIONS');
-      };
-      new MutationObserver(renameBrand).observe(document.documentElement, {subtree:true, childList:true});
-      renameBrand();
-    </script>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
