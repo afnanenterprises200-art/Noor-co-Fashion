@@ -9,5 +9,14 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/admin.jsx"></script>
+    <script>
+      const renameAdmin = () => {
+        document.querySelectorAll('.eyebrow').forEach(el => {
+          el.textContent = el.textContent.replaceAll('NOOR', 'MISK');
+        });
+      };
+      new MutationObserver(renameAdmin).observe(document.documentElement, {subtree:true, childList:true});
+      renameAdmin();
+    </script>
   </body>
 </html>
