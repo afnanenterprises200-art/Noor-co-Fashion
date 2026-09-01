@@ -7,3 +7,5 @@
 
 
 .misk-brand{position:relative;display:inline-flex;align-items:flex-end;justify-content:center}.misk-crown{position:absolute;left:50%;top:-15px;transform:translateX(-50%);font-size:13px;line-height:1;letter-spacing:0}.misk-brand + small{display:block}
+
+.misk-logo{width:142px;height:58px;object-fit:contain;display:block}.brand{display:flex;align-items:center;padding:0}.brand .misk-logo{max-width:142px}@media(max-width:900px){.misk-logo{width:125px;height:52px}}
