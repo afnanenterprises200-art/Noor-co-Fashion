@@ -1,0 +1,41 @@
+name: Add Misk crown to header
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  add-crown:
+    if: ${{ !contains(github.event.head_commit.message, 'Add Misk crown') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add crown icon above MISK
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/store.jsx')
+          s = p.read_text()
+          old = '<span>MISK</span><small>COLLECTIONS</small>'
+          new = '<span className="misk-brand"><span className="misk-crown">♛</span>MISK</span><small>COLLECTIONS</small>'
+          if old not in s:
+              raise SystemExit('MISK brand markup not found; no changes made')
+          p.write_text(s.replace(old, new, 1))
+          css = Path('src/styles.css')
+          c = css.read_text()
+          marker = '.misk-brand{'
+          if marker not in c:
+              c += '\n\n.misk-brand{position:relative;display:inline-flex;align-items:flex-end;justify-content:center}.misk-crown{position:absolute;left:50%;top:-15px;transform:translateX(-50%);font-size:13px;line-height:1;letter-spacing:0}.misk-brand + small{display:block}\n'
+          css.write_text(c)
+          PY
+      - name: Commit change and remove one-time workflow
+        run: |
+          rm -f .github/workflows/add-misk-crown.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/store.jsx src/styles.css .github/workflows/add-misk-crown.yml
+          git commit -m "Add Misk crown"
+          git push
