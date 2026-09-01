@@ -1,0 +1,35 @@
+name: Rename storefront brand
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  rename:
+    if: ${{ !contains(github.event.head_commit.message, 'Rename storefront brand') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Replace header brand only
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/store.jsx')
+          s = p.read_text()
+          old = '<span>NOOR</span><small>& CO.</small>'
+          new = '<span>MISK</span><small>COLLECTIONS</small>'
+          if old not in s:
+              raise SystemExit('Brand markup not found; no changes made')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Commit and remove one-time workflow
+        run: |
+          rm -f .github/workflows/rename-brand.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/store.jsx .github/workflows/rename-brand.yml
+          git commit -m "Rename storefront brand"
+          git push
